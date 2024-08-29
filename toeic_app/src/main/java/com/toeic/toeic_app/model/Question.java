@@ -19,7 +19,7 @@ public class Question {
     @Id
     @JsonSerialize(using = ToStringSerializer.class)
     private ObjectId id;
-    private String testId;
+    private Number test;
     private Number part;
     private String questionText;
     private String questionImg;

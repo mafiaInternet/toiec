@@ -21,7 +21,15 @@ public class User {
     private ObjectId id;
     private String email;
     private String password;
+    private String name;
+    private String phone;
+    private String dateOfBirth;
+    private String sex;
+    private String nationality;
+    private String location;
     private Date createdDate;
     private Date updatedDate;
     private String role;
+    private String resetCode;
+    private Date resetCodeExpiry;
 }

@@ -8,6 +8,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 
@@ -18,45 +19,84 @@ public class QuestionController {
     private QuestionRepo questionRepo;
 
     @PostMapping("save")
-    public ResponseEntity<Question> saveQuestion(@RequestBody Question question) {
-        Question savedQuestion = questionRepo.save(question);
-        return ResponseEntity.status(HttpStatus.CREATED).body(savedQuestion);
+    public ResponseEntity<?> saveQuestion(@RequestBody Question question) {
+        try {
+            Date currentDate = new Date();
+            if (question.getCreatedDate() == null) {
+                question.setCreatedDate(currentDate);
+                question.setUpdatedDate(currentDate);
+            }
+            Question savedQuestion = questionRepo.save(question);
+            return ResponseEntity.status(HttpStatus.CREATED).body(savedQuestion);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Invalid data provided.");
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("An error occurred while saving the question.");
+        }
     }
 
     @GetMapping("/all")
-    public ResponseEntity<List<Question>> getAllQuestions() {
-        List<Question> questions = questionRepo.findAll();
-        return ResponseEntity.status(HttpStatus.OK).body(questions);
+    public ResponseEntity<?> getAllQuestions() {
+        try {
+            List<Question> questions = questionRepo.findAll();
+            if (questions.isEmpty()) {
+                return ResponseEntity.status(HttpStatus.NO_CONTENT).body("No questions found.");
+            }
+            return ResponseEntity.status(HttpStatus.OK).body(questions);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("An error occurred while retrieving questions.");
+        }
     }
+
 
     @GetMapping("/{id}")
-    public ResponseEntity<Question> getQuestionById(@PathVariable("id") String id) {
-        Optional<Question> question = questionRepo.findById(new ObjectId(id));
-        if (question.isPresent()) {
-            return ResponseEntity.status(HttpStatus.OK).body(question.get());
-        } else {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(null);
+    public ResponseEntity<?> getQuestionById(@PathVariable("id") String id) {
+        try {
+            if (!ObjectId.isValid(id)) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Invalid ID format.");
+            }
+            Optional<Question> question = questionRepo.findById(new ObjectId(id));
+            if (question.isPresent()) {
+                return ResponseEntity.status(HttpStatus.OK).body(question.get());
+            } else {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Question not found.");
+            }
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Invalid data provided.");
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("An error occurred while retrieving the question.");
         }
     }
 
+
     @PutMapping("/update/{id}")
-    public ResponseEntity<Question> updateQuestion(@PathVariable("id") String id, @RequestBody Question questionDetails) {
-        Optional<Question> questionOptional = questionRepo.findById(new ObjectId(id));
-        if (questionOptional.isPresent()) {
-            Question question = questionOptional.get();
-            question.setTestId(questionDetails.getTestId());
-            question.setPart(questionDetails.getPart());
-            question.setQuestionText(questionDetails.getQuestionText());
-            question.setQuestionImg(questionDetails.getQuestionImg());
-            question.setQuestionAudio(questionDetails.getQuestionAudio());
-            question.setOptions(questionDetails.getOptions());
-            question.setUpdatedDate(questionDetails.getUpdatedDate());
-            Question updatedQuestion = questionRepo.save(question);
-            return ResponseEntity.status(HttpStatus.OK).body(updatedQuestion);
-        } else {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(null);
+    public ResponseEntity<?> updateQuestion(@PathVariable("id") String id, @RequestBody Question questionDetails) {
+        try {
+            if (!ObjectId.isValid(id)) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Invalid ID format.");
+            }
+            Optional<Question> questionOptional = questionRepo.findById(new ObjectId(id));
+            if (questionOptional.isPresent()) {
+                Question question = questionOptional.get();
+                question.setTest(questionDetails.getTest());
+                question.setPart(questionDetails.getPart());
+                question.setQuestionText(questionDetails.getQuestionText());
+                question.setQuestionImg(questionDetails.getQuestionImg());
+                question.setQuestionAudio(questionDetails.getQuestionAudio());
+                question.setOptions(questionDetails.getOptions());
+                question.setUpdatedDate(new Date());
+                Question updatedQuestion = questionRepo.save(question);
+                return ResponseEntity.status(HttpStatus.OK).body(updatedQuestion);
+            } else {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Question not found.");
+            }
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Invalid data provided.");
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("An error occurred while updating the question.");
         }
     }
+
 
     @DeleteMapping("/delete/{id}")
     public ResponseEntity<Void> deleteQuestion(@PathVariable("id") String id) {
@@ -69,9 +109,42 @@ public class QuestionController {
         }
     }
 
-    @GetMapping("/part/{num}")
-    public ResponseEntity<List<Question>> getRandomPart1Questions(@PathVariable("num") String num) {
-        List<Question> questions = questionRepo.findQuestionsByPart(Integer.parseInt(num), 10);
-        return ResponseEntity.status(HttpStatus.OK).body(questions);
+    @GetMapping("/byPart/{part}")
+    public ResponseEntity<?> findQuestionsByPart(@PathVariable("part") String part) {
+        try {
+            int partNumber;
+            try {
+                partNumber = Integer.parseInt(part);
+            } catch (NumberFormatException e) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Part must be a valid number.");
+            }
+            List<?> questions = questionRepo.findQuestionsByPart(partNumber);
+            if (questions.isEmpty()) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body("No questions found for the specified part.");
+            }
+            return ResponseEntity.status(HttpStatus.OK).body(questions);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("An error occurred while retrieving the questions.");
+        }
     }
+
+    @GetMapping("/randomByPart/{part}")
+    public ResponseEntity<?> findRandomQuestionsByPart(@PathVariable("part") String part) {
+        try {
+            int partNumber;
+            try {
+                partNumber = Integer.parseInt(part);
+            } catch (NumberFormatException e) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Part must be a valid number.");
+            }
+            List<Question> questions = questionRepo.findRandomQuestionsByPart(partNumber, 6);
+            if (questions.isEmpty()) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body("No questions found for the specified part.");
+            }
+            return ResponseEntity.status(HttpStatus.OK).body(questions);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("An error occurred while retrieving the random questions.");
+        }
+    }
+
 }
