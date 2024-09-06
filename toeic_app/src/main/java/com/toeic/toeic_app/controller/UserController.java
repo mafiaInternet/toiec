@@ -2,6 +2,7 @@ package com.toeic.toeic_app.controller;
 
 import com.toeic.toeic_app.model.User;
 import com.toeic.toeic_app.repository.UserRepo;
+import com.toeic.toeic_app.wrapper.ResponseWrapper;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -11,10 +12,7 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.util.DigestUtils;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.Date;
-import java.util.List;
-import java.util.Optional;
-import java.util.Random;
+import java.util.*;
 
 @RestController
 @RequestMapping("/user")
@@ -29,21 +27,25 @@ public class UserController {
     public ResponseEntity<?> sendResetCode(@RequestParam String email) {
         Optional<User> optionalUser = userRepo.findByEmail(email);
         if (optionalUser.isEmpty()) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Email not found.");
+            ResponseWrapper<?> response = new ResponseWrapper<>(null, 2);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
         }
         User user = optionalUser.get(); // Lấy đối tượng User từ Optional
         String code = generateVerificationCode();
         sendEmail(email, code);
         user.setResetCode(code);
-        user.setResetCodeExpiry(new Date(System.currentTimeMillis() + 15 * 60 * 1000)); // 15 minutes expiry
+        user.setResetCodeExpiry(new Date(System.currentTimeMillis() + 15 * 60 * 1000));
         userRepo.save(user);
-        return ResponseEntity.status(HttpStatus.OK).body("Reset code sent.");
+        Map<String, String> content = new HashMap<>();
+        content.put("code", code);
+        ResponseWrapper<Map<String, String>> response = new ResponseWrapper<>(content, 1);
+        return ResponseEntity.status(HttpStatus.OK).body(response);
     }
 
 
     private String generateVerificationCode() {
         Random random = new Random();
-        int code = 100000 + random.nextInt(900000); // 6-digit code
+        int code = 1000 + random.nextInt(9000); // 4-digit code
         return String.valueOf(code);
     }
 
@@ -55,57 +57,85 @@ public class UserController {
         emailSender.send(message);
     }
 
-    @PostMapping("/reset")
-    public ResponseEntity<?> resetPassword(@RequestParam String email, @RequestParam String code, @RequestParam String newPassword) {
+    @PostMapping("/reset-password")
+    public ResponseEntity<?> resetPassword(@RequestParam String email, @RequestParam String newPassword) {
         Optional<User> optionalUser = userRepo.findByEmail(email);
         if (optionalUser.isEmpty()) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Email not found.");
+            ResponseWrapper<?> response = new ResponseWrapper<>(null, 2); // Code 2: Email không tồn tại
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
         }
+
         User user = optionalUser.get();
-        if (user.getResetCode() == null || !code.equals(user.getResetCode()) || new Date().after(user.getResetCodeExpiry())) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Invalid or expired code.");
+        if (new Date().after(user.getResetCodeExpiry())) {
+            ResponseWrapper<?> response = new ResponseWrapper<>(null, 2); // Code 2: Mã reset không hợp lệ hoặc đã hết hạn
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
         }
+
+        // Cập nhật mật khẩu mới với mã hóa MD5
         user.setPassword(DigestUtils.md5DigestAsHex(newPassword.getBytes()));
-        user.setResetCode(null);
-        user.setResetCodeExpiry(null);
+        user.setResetCode(null); // Xóa mã reset
+        user.setResetCodeExpiry(null); // Xóa hạn mã reset
         userRepo.save(user);
-        return ResponseEntity.status(HttpStatus.OK).body("Password updated successfully.");
+
+        // Trả về phản hồi thành công
+        ResponseWrapper<?> response = new ResponseWrapper<>(null, 1); // Code 1: Đặt lại mật khẩu thành công
+        return ResponseEntity.status(HttpStatus.OK).body(response);
     }
+
 
     @PostMapping("/login")
-    public ResponseEntity<User> login(@RequestBody User loginRequest) {
-        Optional<User> userOptional = userRepo.findByEmail(loginRequest.getEmail());
-        if (userOptional.isPresent()) {
-            User user = userOptional.get();
-            String hashedPassword = DigestUtils.md5DigestAsHex(loginRequest.getPassword().getBytes());
-            if (hashedPassword.equals(user.getPassword())) {
-                return ResponseEntity.status(HttpStatus.OK).body(user);
+    public ResponseEntity<ResponseWrapper<User>> login(@RequestBody User loginRequest) {
+        try {
+            Optional<User> userOptional = userRepo.findByEmail(loginRequest.getEmail());
+            if (userOptional.isPresent()) {
+                User user = userOptional.get();
+                String hashedPassword = DigestUtils.md5DigestAsHex(loginRequest.getPassword().getBytes());
+                if (hashedPassword.equals(user.getPassword())) {
+                    ResponseWrapper<User> response = new ResponseWrapper<>(user, 1);
+                    return ResponseEntity.status(HttpStatus.OK).body(response);
+                } else {
+                    ResponseWrapper<User> response = new ResponseWrapper<>(null, 2);
+                    return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+                }
             } else {
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(null);
+                ResponseWrapper<User> response = new ResponseWrapper<>(null, 2);
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
             }
-        } else {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(null);
+        } catch (Exception e) {
+            ResponseWrapper<User> response = new ResponseWrapper<>(null, 3);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
         }
     }
 
-    @PostMapping("save")
-    public ResponseEntity<User> saveUser(@RequestBody User user) {
-        if (user.getEmail() == null || user.getEmail().isEmpty()) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(null);
-        }
-        if (user.getPassword() == null || user.getPassword().isEmpty()) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(null);
-        }
-        Date currentDate = new Date();
-        if (user.getCreatedDate() == null) {
+
+    @PostMapping("/register")
+    public ResponseEntity<ResponseWrapper<User>> saveUser(@RequestBody User user) {
+        try {
+            Optional<User> existingUser = userRepo.findByEmail(user.getEmail());
+            if (existingUser.isPresent()) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(new ResponseWrapper<>(null, 2));
+            }
+            if (user.getName() == null || user.getName().isEmpty() ||
+                    user.getEmail() == null || user.getEmail().isEmpty() ||
+                    user.getPassword() == null || user.getPassword().isEmpty()) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(new ResponseWrapper<>(null, 2));
+            }
+            Date currentDate = new Date();
             user.setCreatedDate(currentDate);
             user.setUpdatedDate(currentDate);
+            user.setPassword(DigestUtils.md5DigestAsHex(user.getPassword().getBytes()));
+            user.setRole("user");
+            User savedUser = userRepo.save(user);
+            return ResponseEntity.status(HttpStatus.CREATED)
+                    .body(new ResponseWrapper<>(savedUser, 1));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new ResponseWrapper<>(null, 3));
         }
-        user.setPassword(DigestUtils.md5DigestAsHex(user.getPassword().getBytes()));
-        user.setRole("user");
-        User savedUser = userRepo.save(user);
-        return ResponseEntity.status(HttpStatus.CREATED).body(savedUser);
     }
+
 
 
     @GetMapping("/all")
@@ -161,9 +191,6 @@ public class UserController {
                 }
                 if (userDetails.getSex() != null) {
                     user.setSex(userDetails.getSex());
-                }
-                if (userDetails.getNationality() != null) {
-                    user.setNationality(userDetails.getNationality());
                 }
                 if (userDetails.getLocation() != null) {
                     user.setLocation(userDetails.getLocation());

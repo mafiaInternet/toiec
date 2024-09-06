@@ -25,7 +25,6 @@ public class User {
     private String phone;
     private String dateOfBirth;
     private String sex;
-    private String nationality;
     private String location;
     private Date createdDate;
     private Date updatedDate;
