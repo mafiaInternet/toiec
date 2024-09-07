@@ -28,7 +28,7 @@ public class UserController {
         Optional<User> optionalUser = userRepo.findByEmail(email);
         if (optionalUser.isEmpty()) {
             ResponseWrapper<?> response = new ResponseWrapper<>(null, 2);
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+            return ResponseEntity.status(HttpStatus.OK).body(response);
         }
         User user = optionalUser.get(); // Lấy đối tượng User từ Optional
         String code = generateVerificationCode();
@@ -62,13 +62,13 @@ public class UserController {
         Optional<User> optionalUser = userRepo.findByEmail(email);
         if (optionalUser.isEmpty()) {
             ResponseWrapper<?> response = new ResponseWrapper<>(null, 2); // Code 2: Email không tồn tại
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+            return ResponseEntity.status(HttpStatus.OK).body(response);
         }
 
         User user = optionalUser.get();
         if (new Date().after(user.getResetCodeExpiry())) {
             ResponseWrapper<?> response = new ResponseWrapper<>(null, 2); // Code 2: Mã reset không hợp lệ hoặc đã hết hạn
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+            return ResponseEntity.status(HttpStatus.OK).body(response);
         }
 
         // Cập nhật mật khẩu mới với mã hóa MD5
@@ -95,15 +95,15 @@ public class UserController {
                     return ResponseEntity.status(HttpStatus.OK).body(response);
                 } else {
                     ResponseWrapper<User> response = new ResponseWrapper<>(null, 2);
-                    return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+                    return ResponseEntity.status(HttpStatus.OK).body(response);
                 }
             } else {
                 ResponseWrapper<User> response = new ResponseWrapper<>(null, 2);
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+                return ResponseEntity.status(HttpStatus.OK).body(response);
             }
         } catch (Exception e) {
             ResponseWrapper<User> response = new ResponseWrapper<>(null, 3);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+            return ResponseEntity.status(HttpStatus.OK).body(response);
         }
     }
 
@@ -113,13 +113,13 @@ public class UserController {
         try {
             Optional<User> existingUser = userRepo.findByEmail(user.getEmail());
             if (existingUser.isPresent()) {
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                return ResponseEntity.status(HttpStatus.OK)
                         .body(new ResponseWrapper<>(null, 2));
             }
             if (user.getName() == null || user.getName().isEmpty() ||
                     user.getEmail() == null || user.getEmail().isEmpty() ||
                     user.getPassword() == null || user.getPassword().isEmpty()) {
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                return ResponseEntity.status(HttpStatus.OK)
                         .body(new ResponseWrapper<>(null, 2));
             }
             Date currentDate = new Date();
@@ -128,10 +128,10 @@ public class UserController {
             user.setPassword(DigestUtils.md5DigestAsHex(user.getPassword().getBytes()));
             user.setRole("user");
             User savedUser = userRepo.save(user);
-            return ResponseEntity.status(HttpStatus.CREATED)
+            return ResponseEntity.status(HttpStatus.OK)
                     .body(new ResponseWrapper<>(savedUser, 1));
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+            return ResponseEntity.status(HttpStatus.OK)
                     .body(new ResponseWrapper<>(null, 3));
         }
     }
