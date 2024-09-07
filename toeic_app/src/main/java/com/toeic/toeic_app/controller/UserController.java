@@ -186,15 +186,6 @@ public class UserController {
                 if (userDetails.getPhone() != null) {
                     user.setPhone(userDetails.getPhone());
                 }
-                if (userDetails.getDateOfBirth() != null) {
-                    user.setDateOfBirth(userDetails.getDateOfBirth());
-                }
-                if (userDetails.getSex() != null) {
-                    user.setSex(userDetails.getSex());
-                }
-                if (userDetails.getLocation() != null) {
-                    user.setLocation(userDetails.getLocation());
-                }
                 user.setUpdatedDate(new Date());
                 User updatedUser = userRepo.save(user);
                 return ResponseEntity.status(HttpStatus.OK).body(updatedUser);
