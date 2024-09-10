@@ -91,7 +91,7 @@ public class QuestionController {
         }
     }
 
-    @GetMapping("/audio/question/{id}")
+    @GetMapping("/audio/{id}")
     public ResponseEntity<?> getAudioByQuestionId(@PathVariable String id) {
         try {
             // Chuyển đổi chuỗi ID thành ObjectId
@@ -130,10 +130,43 @@ public class QuestionController {
     }
 
 
+    @GetMapping("/{id}/image")
+    public ResponseEntity<?> getImageByQuestionId(@PathVariable String id) {
+        try {
+            // Convert the string ID to ObjectId
+            ObjectId objectId = new ObjectId(id);
 
+            // Find the Question record by ObjectId
+            Optional<Question> optionalQuestion = questionRepo.findById(objectId);
 
+            if (!optionalQuestion.isPresent()) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body("khong có question");
+            }
 
+            // Get the path to the image file
+            Question question = optionalQuestion.get();
+            String imgFilePath = question.getQuestionImg();
 
+            // Check if the file exists
+            Path path = Paths.get(imgFilePath);
+            if (!Files.exists(path)) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body("khong co path");
+            }
+
+            // Create a FileSystemResource
+            FileSystemResource fileResource = new FileSystemResource(path.toFile());
+
+            // Return the image file to the client
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + path.getFileName().toString() + "\"")
+                    .contentType(MediaType.IMAGE_JPEG) // Use appropriate MediaType for image format
+                    .body(fileResource);
+
+        } catch (IllegalArgumentException e) {
+            // Return an error status
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(null);
+        }
+    }
 
     @PostMapping("save")
     public ResponseEntity<?> saveQuestion(@RequestBody Question question) {
