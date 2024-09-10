@@ -1,24 +1,22 @@
 package com.toeic.toeic_app.controller;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.toeic.toeic_app.model.Question;
 import com.toeic.toeic_app.repository.QuestionRepo;
 import jakarta.annotation.Resource;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.core.io.PathResource;
+import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.UrlResource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
-
 import java.io.File;
 import java.io.IOException;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
+import java.net.MalformedURLException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -92,6 +90,49 @@ public class QuestionController {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Invalid data provided.");
         }
     }
+
+    @GetMapping("/audio/question/{id}")
+    public ResponseEntity<?> getAudioByQuestionId(@PathVariable String id) {
+        try {
+            // Chuyển đổi chuỗi ID thành ObjectId
+            ObjectId objectId = new ObjectId(id);
+
+            // Tìm kiếm bản ghi Question theo ObjectId
+            Optional<Question> optionalQuestion = questionRepo.findById(objectId);
+
+            if (!optionalQuestion.isPresent()) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(null);
+            }
+
+            // Lấy đường dẫn tới file âm thanh
+            Question question = optionalQuestion.get();
+            String audioFilePath = question.getQuestionAudio();
+
+            // Kiểm tra xem file có tồn tại không
+            Path path = Paths.get(audioFilePath);
+            if (!Files.exists(path)) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(null);
+            }
+
+            // Tạo đối tượng FileSystemResource
+            FileSystemResource fileResource = new FileSystemResource(path.toFile());
+
+            // Trả về file âm thanh cho client
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + path.getFileName().toString() + "\"")
+                    .contentType(MediaType.parseMediaType("audio/mpeg"))
+                    .body(fileResource);
+
+        } catch (IllegalArgumentException e) {
+            // Trả về trạng thái lỗi
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(null);
+        }
+    }
+
+
+
+
+
 
 
     @PostMapping("save")
