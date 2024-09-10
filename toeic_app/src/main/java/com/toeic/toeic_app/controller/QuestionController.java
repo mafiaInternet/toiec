@@ -1,13 +1,28 @@
 package com.toeic.toeic_app.controller;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.toeic.toeic_app.model.Question;
 import com.toeic.toeic_app.repository.QuestionRepo;
+import jakarta.annotation.Resource;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.io.PathResource;
+import org.springframework.core.io.UrlResource;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.File;
+import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
@@ -17,6 +32,67 @@ import java.util.Optional;
 public class QuestionController {
     @Autowired
     private QuestionRepo questionRepo;
+
+    private static final String AUDIO_DIRECTORY = "/data/uploads/audio";
+    private static final String IMG_DIRECTORY = "/data/uploads/img";
+
+    @PostMapping("/test")
+    public ResponseEntity<?> saveQuestion(@RequestParam("file") MultipartFile file,
+                                          @RequestParam("questionImg") MultipartFile questionImg,
+                                          @RequestParam("test") Number test,
+                                          @RequestParam("part") Number part,
+                                          @RequestParam("questionText") String questionText,
+                                          @RequestParam("options") String optionsJson) {
+        try {
+            // Xử lý file âm thanh
+            String originalFileName = file.getOriginalFilename();
+            if (originalFileName == null) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Invalid file name.");
+            }
+            String sanitizedFileName = originalFileName.replaceAll("[^a-zA-Z0-9\\.\\-_]", "_");
+            String audioFileName = new ObjectId().toString() + "_" + sanitizedFileName;
+            Path audioFilePath = Paths.get(AUDIO_DIRECTORY + File.separator + audioFileName);
+            Files.write(audioFilePath, file.getBytes());
+
+            // Xử lý ảnh câu hỏi
+            String originalImgName = questionImg.getOriginalFilename();
+            if (originalImgName == null) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Invalid image file name.");
+            }
+            String sanitizedImgName = originalImgName.replaceAll("[^a-zA-Z0-9\\.\\-_]", "_");
+            String imgFileName = new ObjectId().toString() + "_" + sanitizedImgName;
+            Path imgFilePath = Paths.get(IMG_DIRECTORY + File.separator + imgFileName);
+            Files.write(imgFilePath, questionImg.getBytes());
+
+            // Parse JSON string to List<com.toeic.toeic_app.model.Question.Option>
+            ObjectMapper mapper = new ObjectMapper();
+            List<com.toeic.toeic_app.model.Question.Option> options = Arrays.asList(mapper.readValue(optionsJson, com.toeic.toeic_app.model.Question.Option[].class));
+
+            // Tạo mới đối tượng Question
+            Question question = new Question();
+            question.setTest(test);
+            question.setPart(part);
+            question.setQuestionText(questionText);
+            question.setQuestionAudio(audioFilePath.toString());
+            question.setQuestionImg(imgFilePath.toString());
+            question.setOptions(options);
+
+            Date currentDate = new Date();
+            question.setCreatedDate(currentDate);
+            question.setUpdatedDate(currentDate);
+
+            // Lưu đối tượng Question vào MongoDB
+            Question savedQuestion = questionRepo.save(question);
+
+            return ResponseEntity.status(HttpStatus.CREATED).body(savedQuestion);
+
+        } catch (IOException e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error processing request: " + e.getMessage());
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Invalid data provided.");
+        }
+    }
+
 
     @PostMapping("save")
     public ResponseEntity<?> saveQuestion(@RequestBody Question question) {
