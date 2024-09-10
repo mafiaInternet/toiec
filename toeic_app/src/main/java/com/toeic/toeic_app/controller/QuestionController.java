@@ -133,40 +133,43 @@ public class QuestionController {
     @GetMapping("/{id}/image")
     public ResponseEntity<?> getImageByQuestionId(@PathVariable String id) {
         try {
-            // Convert the string ID to ObjectId
+            // Chuyển đổi chuỗi ID thành ObjectId
             ObjectId objectId = new ObjectId(id);
 
-            // Find the Question record by ObjectId
+            // Tìm kiếm bản ghi Question theo ObjectId
             Optional<Question> optionalQuestion = questionRepo.findById(objectId);
 
             if (!optionalQuestion.isPresent()) {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).body("khong có question");
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body("không có question");
             }
 
-            // Get the path to the image file
+            // Lấy đường dẫn tới file ảnh
             Question question = optionalQuestion.get();
             String imgFilePath = question.getQuestionImg();
 
-            // Check if the file exists
-            Path path = Paths.get(imgFilePath);
-            if (!Files.exists(path)) {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).body("khong co path");
-            }
+            // Debug log để kiểm tra đường dẫn ảnh
+            System.out.println("Image file path from DB: " + imgFilePath);
 
-            // Create a FileSystemResource
+            // Tạo đối tượng FileSystemResource
+            Path path = Paths.get(imgFilePath);
             FileSystemResource fileResource = new FileSystemResource(path.toFile());
 
-            // Return the image file to the client
-            return ResponseEntity.ok()
-                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + path.getFileName().toString() + "\"")
-                    .contentType(MediaType.IMAGE_JPEG) // Use appropriate MediaType for image format
-                    .body(fileResource);
-
+            // Kiểm tra xem file có tồn tại không
+            if (fileResource.exists() && fileResource.isReadable()) {
+                // Trả về file ảnh cho client
+                return ResponseEntity.ok()
+                        .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + path.getFileName().toString() + "\"")
+                        .contentType(MediaType.IMAGE_JPEG) // Hoặc MediaType.IMAGE_PNG nếu là PNG
+                        .body(fileResource);
+            } else {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body("không có file ảnh");
+            }
         } catch (IllegalArgumentException e) {
-            // Return an error status
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(null);
+            // Trả về trạng thái lỗi
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Invalid ID format");
         }
     }
+
 
     @PostMapping("save")
     public ResponseEntity<?> saveQuestion(@RequestBody Question question) {
