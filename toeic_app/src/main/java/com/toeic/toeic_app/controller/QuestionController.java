@@ -130,7 +130,7 @@ public class QuestionController {
     }
 
 
-    @GetMapping("/{id}/image")
+    @GetMapping("/image/{id}")
     public ResponseEntity<?> getImageByQuestionId(@PathVariable String id) {
         try {
             // Chuyển đổi chuỗi ID thành ObjectId
