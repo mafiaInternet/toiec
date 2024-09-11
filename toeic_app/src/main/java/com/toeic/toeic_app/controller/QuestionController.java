@@ -3,6 +3,7 @@ package com.toeic.toeic_app.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.toeic.toeic_app.model.Question;
 import com.toeic.toeic_app.repository.QuestionRepo;
+import com.toeic.toeic_app.wrapper.ResponseWrapper;
 import jakarta.annotation.Resource;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,7 +35,7 @@ public class QuestionController {
     private static final String AUDIO_DIRECTORY = "/data/uploads/audio";
     private static final String IMG_DIRECTORY = "/data/uploads/img";
 
-    @PostMapping("/test")
+    @PostMapping("/save")
     public ResponseEntity<?> saveQuestion(@RequestParam("file") MultipartFile file,
                                           @RequestParam("questionImg") MultipartFile questionImg,
                                           @RequestParam("test") Number test,
@@ -45,7 +46,7 @@ public class QuestionController {
             // Xử lý file âm thanh
             String originalFileName = file.getOriginalFilename();
             if (originalFileName == null) {
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Invalid file name.");
+                return ResponseEntity.status(HttpStatus.OK).body(new ResponseWrapper<>(null, 2));
             }
             String sanitizedFileName = originalFileName.replaceAll("[^a-zA-Z0-9\\.\\-_]", "_");
             String audioFileName = new ObjectId().toString() + "_" + sanitizedFileName;
@@ -55,7 +56,7 @@ public class QuestionController {
             // Xử lý ảnh câu hỏi
             String originalImgName = questionImg.getOriginalFilename();
             if (originalImgName == null) {
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Invalid image file name.");
+                return ResponseEntity.status(HttpStatus.OK).body(new ResponseWrapper<>(null, 2));
             }
             String sanitizedImgName = originalImgName.replaceAll("[^a-zA-Z0-9\\.\\-_]", "_");
             String imgFileName = new ObjectId().toString() + "_" + sanitizedImgName;
@@ -82,12 +83,12 @@ public class QuestionController {
             // Lưu đối tượng Question vào MongoDB
             Question savedQuestion = questionRepo.save(question);
 
-            return ResponseEntity.status(HttpStatus.CREATED).body(savedQuestion);
+            return ResponseEntity.status(HttpStatus.OK).body(new ResponseWrapper<>(savedQuestion, 1));
 
         } catch (IOException e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error processing request: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.OK).body(new ResponseWrapper<>(null, 3));
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Invalid data provided.");
+            return ResponseEntity.status(HttpStatus.OK).body(new ResponseWrapper<>(null, 2));
         }
     }
 
@@ -171,22 +172,22 @@ public class QuestionController {
     }
 
 
-    @PostMapping("save")
-    public ResponseEntity<?> saveQuestion(@RequestBody Question question) {
-        try {
-            Date currentDate = new Date();
-            if (question.getCreatedDate() == null) {
-                question.setCreatedDate(currentDate);
-                question.setUpdatedDate(currentDate);
-            }
-            Question savedQuestion = questionRepo.save(question);
-            return ResponseEntity.status(HttpStatus.CREATED).body(savedQuestion);
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Invalid data provided.");
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("An error occurred while saving the question.");
-        }
-    }
+//    @PostMapping("save")
+//    public ResponseEntity<?> saveQuestion(@RequestBody Question question) {
+//        try {
+//            Date currentDate = new Date();
+//            if (question.getCreatedDate() == null) {
+//                question.setCreatedDate(currentDate);
+//                question.setUpdatedDate(currentDate);
+//            }
+//            Question savedQuestion = questionRepo.save(question);
+//            return ResponseEntity.status(HttpStatus.CREATED).body(savedQuestion);
+//        } catch (IllegalArgumentException e) {
+//            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Invalid data provided.");
+//        } catch (Exception e) {
+//            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("An error occurred while saving the question.");
+//        }
+//    }
 
     @GetMapping("/all")
     public ResponseEntity<?> getAllQuestions() {
