@@ -34,40 +34,64 @@ public class QuestionController {
     private static final String IMG_DIRECTORY = "/data/uploads/img";
 
     @PostMapping("/randomByPart")
-    public List<Question> getRandomQuestionsByPart(@RequestParam("part") String part,
-                                                   @RequestParam("limit") int limit) {
-        List<Question> allQuestions = questionRepo.findAllByPart(part);
-        Collections.shuffle(allQuestions);
-        List<Question> randomQuestions = new ArrayList<>();
+    public ResponseEntity<?> getRandomQuestionsByPart(@RequestParam("part") String part,
+                                                      @RequestParam("limit") int limit) {
+        try {
+            // Kiểm tra giá trị limit
+            if (limit <= 0) {
+                return ResponseEntity.status(HttpStatus.OK)
+                        .body(new ResponseWrapper<>(null, 2));
+            }
 
-        if (part.equals("3") || part.equals("4")) {
-            // Group questions by audio
-//            Map<String, List<Question>> audioGroupedQuestions = allQuestions.stream()
-//                    .collect(Collectors.groupingBy(Question::getQuestionAudio));
-//
-//            // Pick groups with at least 3 questions
-//            List<List<Question>> validGroups = audioGroupedQuestions.values().stream()
-//                    .filter(group -> group.size() >= 3)
-//                    .collect(Collectors.toList());
-//
-//            for (List<Question> group : validGroups) {
-//                if (randomQuestions.size() + group.size() >= limit) {
-//                    randomQuestions.addAll(group.subList(0, limit - randomQuestions.size()));
-//                    return randomQuestions;
-//                }
-//                randomQuestions.addAll(group);
-//            }
-            return allQuestions;
-        } else {
-            for (Question question : allQuestions) {
-                randomQuestions.add(question);
-                if (randomQuestions.size() >= limit) {
-                    return randomQuestions.subList(0, limit);
+            // Kiểm tra giá trị part
+            if (!part.equals("3") && !part.equals("4") && !part.equals("1") && !part.equals("2")) {
+                return ResponseEntity.status(HttpStatus.OK)
+                        .body(new ResponseWrapper<>(null, 2));
+            }
+
+            // Lấy danh sách câu hỏi từ repository
+            List<Question> allQuestions = questionRepo.findAllByPart(part);
+            if (allQuestions.isEmpty()) {
+                return ResponseEntity.status(HttpStatus.OK)
+                        .body(new ResponseWrapper<>(null, 2));
+            }
+
+            Collections.shuffle(allQuestions);
+            List<Question> randomQuestions = new ArrayList<>();
+
+            if (part.equals("3") || part.equals("4")) {
+                // Nhóm câu hỏi theo audio
+                Map<String, List<Question>> audioGroupedQuestions = allQuestions.stream()
+                        .collect(Collectors.groupingBy(Question::getQuestionAudio));
+
+                // Chọn các nhóm có ít nhất 3 câu hỏi
+                List<List<Question>> validGroups = audioGroupedQuestions.values().stream()
+                        .filter(group -> group.size() >= 3)
+                        .collect(Collectors.toList());
+
+                for (List<Question> group : validGroups) {
+                    if (randomQuestions.size() + group.size() >= limit) {
+                        randomQuestions.addAll(group.subList(0, limit - randomQuestions.size()));
+                        return ResponseEntity.status(HttpStatus.OK).body(randomQuestions);
+                    }
+                    randomQuestions.addAll(group);
+                }
+            } else {
+                for (Question question : allQuestions) {
+                    randomQuestions.add(question);
+                    if (randomQuestions.size() >= limit) {
+                        return ResponseEntity.status(HttpStatus.OK).body(new ResponseWrapper<>(randomQuestions.subList(0, limit), 1));
+                    }
                 }
             }
-        }
 
-        return randomQuestions;
+            // Trả về câu hỏi ngẫu nhiên nếu không đủ số lượng
+            return ResponseEntity.status(HttpStatus.OK).body(new ResponseWrapper<>(randomQuestions, 1));
+        } catch (Exception e) {
+            // Xử lý lỗi chung
+            return ResponseEntity.status(HttpStatus.OK)
+                    .body(new ResponseWrapper<>(null, 3));
+        }
     }
 
     @PostMapping("/save")
