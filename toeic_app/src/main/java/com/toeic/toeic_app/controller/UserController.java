@@ -30,7 +30,7 @@ public class UserController {
             ResponseWrapper<?> response = new ResponseWrapper<>(null, 2);
             return ResponseEntity.status(HttpStatus.OK).body(response);
         }
-        User user = optionalUser.get(); // Lấy đối tượng User từ Optional
+        User user = optionalUser.get();
         String code = generateVerificationCode();
         sendEmail(email, code);
         user.setResetCode(code);
@@ -61,24 +61,22 @@ public class UserController {
     public ResponseEntity<?> resetPassword(@RequestParam String email, @RequestParam String newPassword) {
         Optional<User> optionalUser = userRepo.findByEmail(email);
         if (optionalUser.isEmpty()) {
-            ResponseWrapper<?> response = new ResponseWrapper<>(null, 2); // Code 2: Email không tồn tại
+            ResponseWrapper<?> response = new ResponseWrapper<>(null, 2);
             return ResponseEntity.status(HttpStatus.OK).body(response);
         }
 
         User user = optionalUser.get();
         if (new Date().after(user.getResetCodeExpiry())) {
-            ResponseWrapper<?> response = new ResponseWrapper<>(null, 2); // Code 2: Mã reset không hợp lệ hoặc đã hết hạn
+            ResponseWrapper<?> response = new ResponseWrapper<>(null, 2);
             return ResponseEntity.status(HttpStatus.OK).body(response);
         }
 
-        // Cập nhật mật khẩu mới với mã hóa MD5
         user.setPassword(DigestUtils.md5DigestAsHex(newPassword.getBytes()));
-        user.setResetCode(null); // Xóa mã reset
-        user.setResetCodeExpiry(null); // Xóa hạn mã reset
+        user.setResetCode(null);
+        user.setResetCodeExpiry(null);
         userRepo.save(user);
 
-        // Trả về phản hồi thành công
-        ResponseWrapper<?> response = new ResponseWrapper<>(null, 1); // Code 1: Đặt lại mật khẩu thành công
+        ResponseWrapper<?> response = new ResponseWrapper<>(null, 1);
         return ResponseEntity.status(HttpStatus.OK).body(response);
     }
 

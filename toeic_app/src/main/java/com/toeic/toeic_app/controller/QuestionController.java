@@ -37,19 +37,16 @@ public class QuestionController {
     public ResponseEntity<?> getRandomQuestionsByPart(@RequestParam("part") String part,
                                                       @RequestParam("limit") int limit) {
         try {
-            // Kiểm tra giá trị limit
             if (limit <= 0) {
                 return ResponseEntity.status(HttpStatus.OK)
                         .body(new ResponseWrapper<>(null, 2));
             }
 
-            // Kiểm tra giá trị part
             if (!part.equals("3") && !part.equals("4") && !part.equals("1") && !part.equals("2")) {
                 return ResponseEntity.status(HttpStatus.OK)
                         .body(new ResponseWrapper<>(null, 2));
             }
 
-            // Lấy danh sách câu hỏi từ repository
             List<Question> allQuestions = questionRepo.findAllByPart(part);
             if (allQuestions.isEmpty()) {
                 return ResponseEntity.status(HttpStatus.OK)
@@ -85,10 +82,8 @@ public class QuestionController {
                 }
             }
 
-            // Trả về câu hỏi ngẫu nhiên nếu không đủ số lượng
             return ResponseEntity.status(HttpStatus.OK).body(new ResponseWrapper<>(randomQuestions, 1));
         } catch (Exception e) {
-            // Xử lý lỗi chung
             return ResponseEntity.status(HttpStatus.OK)
                     .body(new ResponseWrapper<>(null, 3));
         }
@@ -102,6 +97,8 @@ public class QuestionController {
                                           @RequestParam("questionText") String questionText,
                                           @RequestParam("options") String optionsJson) {
         try {
+            String serverBaseUrl = "http://18.216.169.143:8081";
+
             // Xử lý file âm thanh
             String originalFileName = file.getOriginalFilename();
             if (originalFileName == null) {
@@ -111,6 +108,7 @@ public class QuestionController {
             String audioFileName = new ObjectId().toString() + "_" + sanitizedFileName;
             Path audioFilePath = Paths.get(AUDIO_DIRECTORY + File.separator + audioFileName);
             Files.write(audioFilePath, file.getBytes());
+            String audioFileUrl = serverBaseUrl + "/audio/" + audioFileName;
 
             // Xử lý ảnh câu hỏi
             String originalImgName = questionImg.getOriginalFilename();
@@ -121,6 +119,7 @@ public class QuestionController {
             String imgFileName = new ObjectId().toString() + "_" + sanitizedImgName;
             Path imgFilePath = Paths.get(IMG_DIRECTORY + File.separator + imgFileName);
             Files.write(imgFilePath, questionImg.getBytes());
+            String imgFileUrl = serverBaseUrl + "/img/" + imgFileName;
 
             ObjectMapper mapper = new ObjectMapper();
             List<com.toeic.toeic_app.model.Question.Option> options = Arrays.asList(mapper.readValue(optionsJson, com.toeic.toeic_app.model.Question.Option[].class));
@@ -129,8 +128,8 @@ public class QuestionController {
             question.setTest(test);
             question.setPart(part);
             question.setQuestionText(questionText);
-            question.setQuestionAudio(audioFilePath.toString());
-            question.setQuestionImg(imgFilePath.toString());
+            question.setQuestionAudio(audioFileUrl);
+            question.setQuestionImg(imgFileUrl);
             question.setOptions(options);
 
             Date currentDate = new Date();
@@ -209,17 +208,14 @@ public class QuestionController {
     @GetMapping("/audio/{id}")
     public ResponseEntity<?> getAudioByQuestionId(@PathVariable String id) {
         try {
-            // Chuyển đổi chuỗi ID thành ObjectId
             ObjectId objectId = new ObjectId(id);
 
-            // Tìm kiếm bản ghi Question theo ObjectId
             Optional<Question> optionalQuestion = questionRepo.findById(objectId);
 
             if (!optionalQuestion.isPresent()) {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND).body(null);
             }
 
-            // Lấy đường dẫn tới file âm thanh
             Question question = optionalQuestion.get();
             String audioFilePath = question.getQuestionAudio();
 
@@ -229,17 +225,14 @@ public class QuestionController {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND).body(null);
             }
 
-            // Tạo đối tượng FileSystemResource
             FileSystemResource fileResource = new FileSystemResource(path.toFile());
 
-            // Trả về file âm thanh cho client
             return ResponseEntity.ok()
                     .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + path.getFileName().toString() + "\"")
                     .contentType(MediaType.parseMediaType("audio/mpeg"))
                     .body(fileResource);
 
         } catch (IllegalArgumentException e) {
-            // Trả về trạng thái lỗi
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(null);
         }
     }
@@ -248,30 +241,22 @@ public class QuestionController {
     @GetMapping("/image/{id}")
     public ResponseEntity<?> getImageByQuestionId(@PathVariable String id) {
         try {
-            // Chuyển đổi chuỗi ID thành ObjectId
             ObjectId objectId = new ObjectId(id);
 
-            // Tìm kiếm bản ghi Question theo ObjectId
             Optional<Question> optionalQuestion = questionRepo.findById(objectId);
 
             if (!optionalQuestion.isPresent()) {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND).body("không có question");
             }
 
-            // Lấy đường dẫn tới file ảnh
             Question question = optionalQuestion.get();
             String imgFilePath = question.getQuestionImg();
-
-            // Debug log để kiểm tra đường dẫn ảnh
-            System.out.println("Image file path from DB: " + imgFilePath);
 
             // Tạo đối tượng FileSystemResource
             Path path = Paths.get(imgFilePath);
             FileSystemResource fileResource = new FileSystemResource(path.toFile());
 
-            // Kiểm tra xem file có tồn tại không
             if (fileResource.exists() && fileResource.isReadable()) {
-                // Trả về file ảnh cho client
                 return ResponseEntity.ok()
                         .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + path.getFileName().toString() + "\"")
                         .contentType(MediaType.IMAGE_JPEG) // Hoặc MediaType.IMAGE_PNG nếu là PNG
@@ -280,28 +265,9 @@ public class QuestionController {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND).body("không có file ảnh");
             }
         } catch (IllegalArgumentException e) {
-            // Trả về trạng thái lỗi
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Invalid ID format");
         }
     }
-
-
-//    @PostMapping("save")
-//    public ResponseEntity<?> saveQuestion(@RequestBody Question question) {
-//        try {
-//            Date currentDate = new Date();
-//            if (question.getCreatedDate() == null) {
-//                question.setCreatedDate(currentDate);
-//                question.setUpdatedDate(currentDate);
-//            }
-//            Question savedQuestion = questionRepo.save(question);
-//            return ResponseEntity.status(HttpStatus.CREATED).body(savedQuestion);
-//        } catch (IllegalArgumentException e) {
-//            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Invalid data provided.");
-//        } catch (Exception e) {
-//            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("An error occurred while saving the question.");
-//        }
-//    }
 
     @GetMapping("/all")
     public ResponseEntity<?> getAllQuestions() {
