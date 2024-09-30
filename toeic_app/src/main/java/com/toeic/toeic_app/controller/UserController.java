@@ -45,7 +45,7 @@ public class UserController {
 
     private String generateVerificationCode() {
         Random random = new Random();
-        int code = 1000 + random.nextInt(9000); // 4-digit code
+        int code = 1000 + random.nextInt(9000);
         return String.valueOf(code);
     }
 
