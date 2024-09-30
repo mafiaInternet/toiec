@@ -104,71 +104,55 @@ public class QuestionController {
 
 
     @PostMapping("/save")
-    public ResponseEntity<?> saveQuestion(
-            @RequestParam("file") MultipartFile file,
-            @RequestParam("questionImg") MultipartFile questionImg,
-            @RequestParam("test") Number test,
-            @RequestParam("part") Number part,
-            @RequestParam("questionText") String questionText,
-            @RequestParam("options") String optionsJson) {
+    public ResponseEntity<?> saveQuestion(@RequestParam("file") MultipartFile file,
+                                          @RequestParam("questionImg") MultipartFile questionImg,
+                                          @RequestParam("test") Number test,
+                                          @RequestParam("part") Number part,
+                                          @RequestParam("questionText") String questionText,
+                                          @RequestParam("options") String optionsJson) {
         try {
             String serverBaseUrl = "http://18.216.169.143:8081";
-            String audioFileUrl = null;
 
-            // Nếu part là 3, kiểm tra xem đã có URL audio chưa
-            if (part.intValue() == 3) {
-                // Tìm các câu hỏi Part 3 đã lưu và lấy URL audio của chúng
-                List<Question> part3Questions = questionRepo.findByTestAndPart(test, part);
-
-                if (part3Questions != null && !part3Questions.isEmpty()) {
-                    // Nếu đã có câu hỏi Part 3 trước đó, lấy URL âm thanh của câu hỏi trước
-                    audioFileUrl = part3Questions.get(0).getQuestionAudio();
-                } else {
-                    // Nếu chưa có câu hỏi Part 3 nào, xử lý upload file âm thanh mới
-                    String originalFileName = file.getOriginalFilename();
-                    if (originalFileName == null) {
-                        return ResponseEntity.status(HttpStatus.OK).body(new ResponseWrapper<>(null, 2));
-                    }
-                    String sanitizedFileName = originalFileName.replaceAll("[^a-zA-Z0-9\\.\\-_]", "_");
-                    String audioFileName = new ObjectId().toString() + "_" + sanitizedFileName;
-                    Path audioFilePath = Paths.get(AUDIO_DIRECTORY + File.separator + audioFileName);
-                    Files.write(audioFilePath, file.getBytes());
-                    audioFileUrl = serverBaseUrl + "/audio/" + audioFileName;
-                }
-            } else {
-                // Nếu không phải Part 3, upload âm thanh như bình thường
-                String originalFileName = file.getOriginalFilename();
-                if (originalFileName == null) {
-                    return ResponseEntity.status(HttpStatus.OK).body(new ResponseWrapper<>(null, 2));
-                }
-                String sanitizedFileName = originalFileName.replaceAll("[^a-zA-Z0-9\\.\\-_]", "_");
-                String audioFileName = new ObjectId().toString() + "_" + sanitizedFileName;
-                Path audioFilePath = Paths.get(AUDIO_DIRECTORY + File.separator + audioFileName);
-                Files.write(audioFilePath, file.getBytes());
-                audioFileUrl = serverBaseUrl + "/audio/" + audioFileName;
+            // Xử lý file âm thanh
+            String originalFileName = file.getOriginalFilename();
+            if (originalFileName == null || originalFileName.isEmpty()) {
+                return ResponseEntity.status(HttpStatus.OK).body(new ResponseWrapper<>(null, 2));
             }
+
+            // Tạo tên file duy nhất cho âm thanh
+            String sanitizedFileName = originalFileName.replaceAll("[^a-zA-Z0-9\\.\\-_]", "_");
+            String audioFileName = new ObjectId().toString() + "_" + sanitizedFileName;
+            Path audioFilePath = Paths.get(AUDIO_DIRECTORY + File.separator + audioFileName);
+
+            // Ghi file âm thanh vào thư mục
+            Files.write(audioFilePath, file.getBytes());
+            String audioFileUrl = serverBaseUrl + "/audio/" + audioFileName;
 
             // Xử lý ảnh câu hỏi
             String originalImgName = questionImg.getOriginalFilename();
-            if (originalImgName == null) {
+            if (originalImgName == null || originalImgName.isEmpty()) {
                 return ResponseEntity.status(HttpStatus.OK).body(new ResponseWrapper<>(null, 2));
             }
+
+            // Tạo tên file duy nhất cho ảnh
             String sanitizedImgName = originalImgName.replaceAll("[^a-zA-Z0-9\\.\\-_]", "_");
             String imgFileName = new ObjectId().toString() + "_" + sanitizedImgName;
             Path imgFilePath = Paths.get(IMG_DIRECTORY + File.separator + imgFileName);
+
+            // Ghi file ảnh vào thư mục
             Files.write(imgFilePath, questionImg.getBytes());
             String imgFileUrl = serverBaseUrl + "/img/" + imgFileName;
 
-            // Chuyển đổi JSON options thành danh sách Option
+            // Xử lý options
             ObjectMapper mapper = new ObjectMapper();
             List<com.toeic.toeic_app.model.Question.Option> options = Arrays.asList(mapper.readValue(optionsJson, com.toeic.toeic_app.model.Question.Option[].class));
 
-            // Tạo câu hỏi mới và lưu
+            // Lưu câu hỏi vào database
             Question question = new Question();
             question.setTest(test);
             question.setPart(part);
             question.setQuestionText(questionText);
-            question.setQuestionAudio(audioFileUrl); // Sử dụng audioFileUrl từ logic trên
+            question.setQuestionAudio(audioFileUrl);
             question.setQuestionImg(imgFileUrl);
             question.setOptions(options);
 
@@ -181,11 +165,13 @@ public class QuestionController {
             return ResponseEntity.status(HttpStatus.OK).body(new ResponseWrapper<>(savedQuestion, 1));
 
         } catch (IOException e) {
+            // Xử lý lỗi khi ghi file
             return ResponseEntity.status(HttpStatus.OK).body(new ResponseWrapper<>(null, 3));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.OK).body(new ResponseWrapper<>(null, 2));
         }
     }
+
 
 
 //    @PostMapping("/save")
