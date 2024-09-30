@@ -53,8 +53,7 @@ public class QuestionController {
                         .body(new ResponseWrapper<>(null, 2));
             }
 
-            Collections.shuffle(allQuestions);
-            List<Question> randomQuestions = new ArrayList<>();
+            Collections.shuffle(allQuestions);  // Trộn danh sách các câu hỏi ngẫu nhiên
 
             if (part.equals("3") || part.equals("4")) {
                 // Nhóm câu hỏi theo audio
@@ -66,28 +65,43 @@ public class QuestionController {
                         .filter(group -> group.size() >= 3)
                         .collect(Collectors.toList());
 
+                List<List<Question>> groupedQuestions = new ArrayList<>();
+
                 for (List<Question> group : validGroups) {
-                    if (randomQuestions.size() + group.size() >= limit) {
-                        randomQuestions.addAll(group.subList(0, limit - randomQuestions.size()));
-                        return ResponseEntity.status(HttpStatus.OK).body(randomQuestions);
+                    if (groupedQuestions.size() >= limit / 3) {
+                        break;  // Dừng lại khi đủ số lượng nhóm yêu cầu
                     }
-                    randomQuestions.addAll(group);
+                    groupedQuestions.add(group.subList(0, 3)); // Lấy nhóm gồm 3 câu hỏi
                 }
+
+                // Nếu không đủ nhóm có 3 câu hỏi
+                if (groupedQuestions.isEmpty()) {
+                    return ResponseEntity.status(HttpStatus.OK)
+                            .body(new ResponseWrapper<>(null, 2));
+                }
+
+                return ResponseEntity.status(HttpStatus.OK)
+                        .body(new ResponseWrapper<>(groupedQuestions, 1));
+
             } else {
+                // Xử lý cho các part khác ngoài part 3 và 4
+                List<Question> randomQuestions = new ArrayList<>();
                 for (Question question : allQuestions) {
                     randomQuestions.add(question);
                     if (randomQuestions.size() >= limit) {
-                        return ResponseEntity.status(HttpStatus.OK).body(new ResponseWrapper<>(randomQuestions.subList(0, limit), 1));
+                        break;  // Dừng lại khi đủ số lượng yêu cầu
                     }
                 }
+                return ResponseEntity.status(HttpStatus.OK)
+                        .body(new ResponseWrapper<>(randomQuestions, 1));
             }
 
-            return ResponseEntity.status(HttpStatus.OK).body(new ResponseWrapper<>(randomQuestions, 1));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.OK)
                     .body(new ResponseWrapper<>(null, 3));
         }
     }
+
 
     @PostMapping("/save")
     public ResponseEntity<?> saveQuestion(
