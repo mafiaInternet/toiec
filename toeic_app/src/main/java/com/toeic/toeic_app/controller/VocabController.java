@@ -9,6 +9,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @RestController
@@ -38,7 +39,7 @@ public class VocabController {
     @GetMapping("/search")
     public ResponseEntity<ResponseWrapper<?>> searchVocabulary(
             @RequestParam("key") String key,
-            @RequestParam(value = "topic", required = false) Number topic) {
+            @RequestParam(value = "topic", required = false) Integer topic) {  // Sửa thành Integer
         try {
             if (key == null || key.isEmpty()) {
                 return ResponseEntity.ok(new ResponseWrapper<>(vocabRepo.findAll(), 1));
@@ -55,4 +56,28 @@ public class VocabController {
                     .body(new ResponseWrapper<>(null, 2));
         }
     }
+
+    @GetMapping("/random")
+    public ResponseEntity<ResponseWrapper<?>> getRandomVocabularyByTopic(
+            @RequestParam("limit") int limit,
+            @RequestParam("topic") Integer topic) {
+        try {
+            // Nếu limit <= 0, trả về danh sách rỗng
+            if (limit <= 0) {
+                return ResponseEntity.ok(new ResponseWrapper<>(new ArrayList<>(), 2));
+            }
+
+            // Truy vấn MongoDB để lấy các từ vựng theo topic ngẫu nhiên
+            List<Vocabulary> randomVocab = vocabRepo.findRandomByTopic(topic, limit);
+
+            // Trả về danh sách từ vựng ngẫu nhiên
+            return ResponseEntity.ok(new ResponseWrapper<>(randomVocab, 1));
+        } catch (Exception e) {
+            // Xử lý lỗi và trả về response lỗi
+            return ResponseEntity.status(HttpStatus.OK)
+                    .body(new ResponseWrapper<>(null, 3));
+        }
+    }
+
+
 }

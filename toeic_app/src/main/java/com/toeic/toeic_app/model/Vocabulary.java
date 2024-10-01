@@ -19,7 +19,7 @@ public class Vocabulary {
     @Id
     @JsonSerialize(using = ToStringSerializer.class)
     private ObjectId id;
-    private Number topic;
+    private Integer topic;  // Sửa thành Integer
     private String text;
     private String pronunciation;
     private String meaning;
