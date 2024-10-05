@@ -42,10 +42,10 @@ public class QuestionController {
                         .body(new ResponseWrapper<>(null, 2));
             }
 
-            if (!part.equals("3") && !part.equals("4") && !part.equals("1") && !part.equals("2")) {
-                return ResponseEntity.status(HttpStatus.OK)
-                        .body(new ResponseWrapper<>(null, 2));
-            }
+//            if (!part.equals("3") && !part.equals("4") && !part.equals("1") && !part.equals("2")) {
+//                return ResponseEntity.status(HttpStatus.OK)
+//                        .body(new ResponseWrapper<>(null, 2));
+//            }
 
             List<Question> allQuestions = questionRepo.findAllByPart(part);
             if (allQuestions.isEmpty()) {
