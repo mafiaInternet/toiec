@@ -37,145 +37,117 @@ public class QuestionController {
     public ResponseEntity<?> getRandomQuestionsByPart(@RequestParam("part") String part,
                                                       @RequestParam("limit") int limit) {
         try {
-            if (limit <= 0) {
+            if (limit <= 0 || limit % 3 != 0) {
                 return ResponseEntity.status(HttpStatus.OK)
-                        .body(new ResponseWrapper<>(null, 2));
+                        .body(new ResponseWrapper<>(null, 2)); // Kiểm tra limit phải là bội số của 3
             }
-
-//            if (!part.equals("3") && !part.equals("4") && !part.equals("1") && !part.equals("2")) {
-//                return ResponseEntity.status(HttpStatus.OK)
-//                        .body(new ResponseWrapper<>(null, 2));
-//            }
 
             List<Question> allQuestions = questionRepo.findAllByPart(part);
             if (allQuestions.isEmpty()) {
                 return ResponseEntity.status(HttpStatus.OK)
-                        .body(new ResponseWrapper<>(null, 2));
+                        .body(new ResponseWrapper<>(null, 2)); // Không tìm thấy câu hỏi
             }
 
-            Collections.shuffle(allQuestions);  // Trộn danh sách các câu hỏi ngẫu nhiên
+            // Nhóm câu hỏi theo stt
+            Map<String, List<Question>> groupedQuestions = allQuestions.stream()
+                    .collect(Collectors.groupingBy(Question::getStt));
 
-            if (part.equals("3") || part.equals("4")) {
-                // Nhóm câu hỏi theo audio
-                Map<String, List<Question>> audioGroupedQuestions = allQuestions.stream()
-                        .collect(Collectors.groupingBy(Question::getQuestionAudio));
+            List<List<Question>> resultGroups = new ArrayList<>();
 
-                // Chọn các nhóm có ít nhất 3 câu hỏi
-                List<List<Question>> validGroups = audioGroupedQuestions.values().stream()
-                        .filter(group -> group.size() >= 3)
-                        .collect(Collectors.toList());
-
-                List<List<Question>> groupedQuestions = new ArrayList<>();
-
-                for (List<Question> group : validGroups) {
-                    if (groupedQuestions.size() >= limit / 3) {
-                        break;  // Dừng lại khi đủ số lượng nhóm yêu cầu
-                    }
-                    groupedQuestions.add(group.subList(0, 3)); // Lấy nhóm gồm 3 câu hỏi
-                }
-
-                // Nếu không đủ nhóm có 3 câu hỏi
-                if (groupedQuestions.isEmpty()) {
-                    return ResponseEntity.status(HttpStatus.OK)
-                            .body(new ResponseWrapper<>(null, 2));
-                }
-
-                return ResponseEntity.status(HttpStatus.OK)
-                        .body(new ResponseWrapper<>(groupedQuestions, 1));
-
-            } else {
-                // Xử lý cho các part khác ngoài part 3 và 4
-                List<Question> randomQuestions = new ArrayList<>();
-                for (Question question : allQuestions) {
-                    randomQuestions.add(question);
-                    if (randomQuestions.size() >= limit) {
-                        break;  // Dừng lại khi đủ số lượng yêu cầu
+            // Lặp qua các nhóm và thêm vào kết quả
+            for (List<Question> group : groupedQuestions.values()) {
+                Collections.shuffle(group); // Trộn ngẫu nhiên nhóm câu hỏi
+                for (int i = 0; i < group.size(); i += 3) {
+                    if (i + 3 <= group.size()) {
+                        resultGroups.add(group.subList(i, i + 3)); // Thêm nhóm 3 câu hỏi
                     }
                 }
-                return ResponseEntity.status(HttpStatus.OK)
-                        .body(new ResponseWrapper<>(randomQuestions, 1));
             }
+
+            // Kiểm tra số lượng câu hỏi đủ với limit
+            if (resultGroups.size() < limit / 3) {
+                return ResponseEntity.status(HttpStatus.OK)
+                        .body(new ResponseWrapper<>(null, 2)); // Không đủ nhóm câu hỏi
+            }
+
+            // Chỉ trả về số lượng nhóm yêu cầu
+            List<List<Question>> limitedGroups = resultGroups.subList(0, limit / 3);
+            return ResponseEntity.status(HttpStatus.OK)
+                    .body(new ResponseWrapper<>(limitedGroups, 1));
 
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.OK)
-                    .body(new ResponseWrapper<>(null, 3));
+                    .body(new ResponseWrapper<>(null, 3)); // Lỗi không xác định
         }
     }
 
 
+
+
+
+
+
     @PostMapping("/save")
-    public ResponseEntity<?> saveQuestion(
-            @RequestParam("file") MultipartFile file,
-            @RequestParam("questionImg") MultipartFile questionImg,
-            @RequestParam("test") Number test,
-            @RequestParam("part") Number part,
-            @RequestParam("questionText") String questionText,
-            @RequestParam("options") String optionsJson) {
+    public ResponseEntity<?> saveQuestion(@RequestParam(value = "file", required = false) MultipartFile file,
+                                          @RequestParam(value = "questionImg", required = false) MultipartFile questionImg,
+                                          @RequestParam("test") Number test,
+                                          @RequestParam("part") Number part,
+                                          @RequestParam("questionText") String questionText,
+                                          @RequestParam("options") String optionsJson,
+                                          @RequestParam("stt") String stt) {
         try {
+            // Địa chỉ gốc của máy chủ
             String serverBaseUrl = "http://18.216.169.143:8081";
-            String audioFileUrl = null;
 
-            // Nếu part là 3, kiểm tra xem đã có URL audio chưa
-            if (part.intValue() == 3) {
-                // Tìm các câu hỏi Part 3 đã lưu và lấy URL audio của chúng
-                List<Question> part3Questions = questionRepo.findByTestAndPart(test, part);
-
-                if (part3Questions != null && !part3Questions.isEmpty()) {
-                    // Nếu đã có câu hỏi Part 3 trước đó, lấy URL âm thanh của câu hỏi trước
-                    audioFileUrl = part3Questions.get(0).getQuestionAudio();
-                } else {
-                    // Nếu chưa có câu hỏi Part 3 nào, xử lý upload file âm thanh mới
-                    String originalFileName = file.getOriginalFilename();
-                    if (originalFileName == null) {
-                        return ResponseEntity.status(HttpStatus.OK).body(new ResponseWrapper<>(null, 2));
-                    }
-                    String sanitizedFileName = originalFileName.replaceAll("[^a-zA-Z0-9\\.\\-_]", "_");
-                    String audioFileName = new ObjectId().toString() + "_" + sanitizedFileName;
-                    Path audioFilePath = Paths.get(AUDIO_DIRECTORY + File.separator + audioFileName);
-                    Files.write(audioFilePath, file.getBytes());
-                    audioFileUrl = serverBaseUrl + "/audio/" + audioFileName;
-                }
-            } else {
-                // Nếu không phải Part 3, upload âm thanh như bình thường
-                String originalFileName = file.getOriginalFilename();
-                if (originalFileName == null) {
-                    return ResponseEntity.status(HttpStatus.OK).body(new ResponseWrapper<>(null, 2));
-                }
-                String sanitizedFileName = originalFileName.replaceAll("[^a-zA-Z0-9\\.\\-_]", "_");
-                String audioFileName = new ObjectId().toString() + "_" + sanitizedFileName;
-                Path audioFilePath = Paths.get(AUDIO_DIRECTORY + File.separator + audioFileName);
-                Files.write(audioFilePath, file.getBytes());
-                audioFileUrl = serverBaseUrl + "/audio/" + audioFileName;
-            }
-
-            // Xử lý ảnh câu hỏi
-            String originalImgName = questionImg.getOriginalFilename();
-            if (originalImgName == null) {
-                return ResponseEntity.status(HttpStatus.OK).body(new ResponseWrapper<>(null, 2));
-            }
-            String sanitizedImgName = originalImgName.replaceAll("[^a-zA-Z0-9\\.\\-_]", "_");
-            String imgFileName = new ObjectId().toString() + "_" + sanitizedImgName;
-            Path imgFilePath = Paths.get(IMG_DIRECTORY + File.separator + imgFileName);
-            Files.write(imgFilePath, questionImg.getBytes());
-            String imgFileUrl = serverBaseUrl + "/img/" + imgFileName;
-
-            // Chuyển đổi JSON options thành danh sách Option
-            ObjectMapper mapper = new ObjectMapper();
-            List<com.toeic.toeic_app.model.Question.Option> options = Arrays.asList(mapper.readValue(optionsJson, com.toeic.toeic_app.model.Question.Option[].class));
-
-            // Tạo câu hỏi mới và lưu
+            // Tạo đối tượng Question
             Question question = new Question();
             question.setTest(test);
             question.setPart(part);
             question.setQuestionText(questionText);
-            question.setQuestionAudio(audioFileUrl); // Sử dụng audioFileUrl từ logic trên
-            question.setQuestionImg(imgFileUrl);
+            question.setStt(stt);
+
+            // Xử lý file âm thanh (nếu có)
+            if (file != null && !file.isEmpty()) {
+                String originalFileName = file.getOriginalFilename();
+                if (originalFileName != null) {
+                    String sanitizedFileName = originalFileName.replaceAll("[^a-zA-Z0-9\\.\\-_]", "_");
+                    String audioFileName = new ObjectId().toString() + "_" + sanitizedFileName;
+                    Path audioFilePath = Paths.get(AUDIO_DIRECTORY + File.separator + audioFileName);
+                    Files.write(audioFilePath, file.getBytes());
+                    // Tạo URL đầy đủ cho file âm thanh
+                    String audioFileUrl = serverBaseUrl + "/audio/" + audioFileName;
+                    question.setQuestionAudio(audioFileUrl); // Lưu URL đầy đủ của audio
+                }
+            } else {
+                question.setQuestionAudio(null); // Nếu không có file, đặt giá trị null
+            }
+
+            // Xử lý ảnh câu hỏi (nếu có)
+            if (questionImg != null && !questionImg.isEmpty()) {
+                String originalImgName = questionImg.getOriginalFilename();
+                if (originalImgName != null) {
+                    String sanitizedImgName = originalImgName.replaceAll("[^a-zA-Z0-9\\.\\-_]", "_");
+                    String imgFileName = new ObjectId().toString() + "_" + sanitizedImgName;
+                    Path imgFilePath = Paths.get(IMG_DIRECTORY + File.separator + imgFileName);
+                    Files.write(imgFilePath, questionImg.getBytes());
+                    // Tạo URL đầy đủ cho ảnh câu hỏi
+                    String imgFileUrl = serverBaseUrl + "/img/" + imgFileName;
+                    question.setQuestionImg(imgFileUrl); // Lưu URL đầy đủ của hình ảnh
+                }
+            } else {
+                question.setQuestionImg(null); // Nếu không có ảnh, đặt giá trị null
+            }
+
+            // Chuyển đổi chuỗi JSON thành danh sách options
+            ObjectMapper mapper = new ObjectMapper();
+            List<com.toeic.toeic_app.model.Question.Option> options = Arrays.asList(mapper.readValue(optionsJson, com.toeic.toeic_app.model.Question.Option[].class));
             question.setOptions(options);
 
             Date currentDate = new Date();
             question.setCreatedDate(currentDate);
             question.setUpdatedDate(currentDate);
 
+            // Lưu câu hỏi vào database
             Question savedQuestion = questionRepo.save(question);
 
             return ResponseEntity.status(HttpStatus.OK).body(new ResponseWrapper<>(savedQuestion, 1));
@@ -186,6 +158,98 @@ public class QuestionController {
             return ResponseEntity.status(HttpStatus.OK).body(new ResponseWrapper<>(null, 2));
         }
     }
+
+
+
+
+
+
+
+
+
+//    @PostMapping("/save")
+//    public ResponseEntity<?> saveQuestion(
+//            @RequestParam("file") MultipartFile file,
+//            @RequestParam("questionImg") MultipartFile questionImg,
+//            @RequestParam("test") Number test,
+//            @RequestParam("part") Number part,
+//            @RequestParam("questionText") String questionText,
+//            @RequestParam("options") String optionsJson) {
+//        try {
+//            String serverBaseUrl = "http://18.216.169.143:8081";
+//            String audioFileUrl = null;
+//
+//            // Nếu part là 3, kiểm tra xem đã có URL audio chưa
+//            if (part.intValue() == 3) {
+//                // Tìm các câu hỏi Part 3 đã lưu và lấy URL audio của chúng
+//                List<Question> part3Questions = questionRepo.findByTestAndPart(test, part);
+//
+//                if (part3Questions != null && !part3Questions.isEmpty()) {
+//                    // Nếu đã có câu hỏi Part 3 trước đó, lấy URL âm thanh của câu hỏi trước
+//                    audioFileUrl = part3Questions.get(0).getQuestionAudio();
+//                } else {
+//                    // Nếu chưa có câu hỏi Part 3 nào, xử lý upload file âm thanh mới
+//                    String originalFileName = file.getOriginalFilename();
+//                    if (originalFileName == null) {
+//                        return ResponseEntity.status(HttpStatus.OK).body(new ResponseWrapper<>(null, 2));
+//                    }
+//                    String sanitizedFileName = originalFileName.replaceAll("[^a-zA-Z0-9\\.\\-_]", "_");
+//                    String audioFileName = new ObjectId().toString() + "_" + sanitizedFileName;
+//                    Path audioFilePath = Paths.get(AUDIO_DIRECTORY + File.separator + audioFileName);
+//                    Files.write(audioFilePath, file.getBytes());
+//                    audioFileUrl = serverBaseUrl + "/audio/" + audioFileName;
+//                }
+//            } else {
+//                // Nếu không phải Part 3, upload âm thanh như bình thường
+//                String originalFileName = file.getOriginalFilename();
+//                if (originalFileName == null) {
+//                    return ResponseEntity.status(HttpStatus.OK).body(new ResponseWrapper<>(null, 2));
+//                }
+//                String sanitizedFileName = originalFileName.replaceAll("[^a-zA-Z0-9\\.\\-_]", "_");
+//                String audioFileName = new ObjectId().toString() + "_" + sanitizedFileName;
+//                Path audioFilePath = Paths.get(AUDIO_DIRECTORY + File.separator + audioFileName);
+//                Files.write(audioFilePath, file.getBytes());
+//                audioFileUrl = serverBaseUrl + "/audio/" + audioFileName;
+//            }
+//
+//            // Xử lý ảnh câu hỏi
+//            String originalImgName = questionImg.getOriginalFilename();
+//            if (originalImgName == null) {
+//                return ResponseEntity.status(HttpStatus.OK).body(new ResponseWrapper<>(null, 2));
+//            }
+//            String sanitizedImgName = originalImgName.replaceAll("[^a-zA-Z0-9\\.\\-_]", "_");
+//            String imgFileName = new ObjectId().toString() + "_" + sanitizedImgName;
+//            Path imgFilePath = Paths.get(IMG_DIRECTORY + File.separator + imgFileName);
+//            Files.write(imgFilePath, questionImg.getBytes());
+//            String imgFileUrl = serverBaseUrl + "/img/" + imgFileName;
+//
+//            // Chuyển đổi JSON options thành danh sách Option
+//            ObjectMapper mapper = new ObjectMapper();
+//            List<com.toeic.toeic_app.model.Question.Option> options = Arrays.asList(mapper.readValue(optionsJson, com.toeic.toeic_app.model.Question.Option[].class));
+//
+//            // Tạo câu hỏi mới và lưu
+//            Question question = new Question();
+//            question.setTest(test);
+//            question.setPart(part);
+//            question.setQuestionText(questionText);
+//            question.setQuestionAudio(audioFileUrl); // Sử dụng audioFileUrl từ logic trên
+//            question.setQuestionImg(imgFileUrl);
+//            question.setOptions(options);
+//
+//            Date currentDate = new Date();
+//            question.setCreatedDate(currentDate);
+//            question.setUpdatedDate(currentDate);
+//
+//            Question savedQuestion = questionRepo.save(question);
+//
+//            return ResponseEntity.status(HttpStatus.OK).body(new ResponseWrapper<>(savedQuestion, 1));
+//
+//        } catch (IOException e) {
+//            return ResponseEntity.status(HttpStatus.OK).body(new ResponseWrapper<>(null, 3));
+//        } catch (IllegalArgumentException e) {
+//            return ResponseEntity.status(HttpStatus.OK).body(new ResponseWrapper<>(null, 2));
+//        }
+//    }
 
 
 //    @PostMapping("/save")

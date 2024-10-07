@@ -27,6 +27,7 @@ public class Question {
     private List<Option> options;
     private Date createdDate;
     private Date updatedDate;
+    private String stt;
 
     @Data
     @NoArgsConstructor
