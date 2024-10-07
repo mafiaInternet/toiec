@@ -37,49 +37,65 @@ public class QuestionController {
     public ResponseEntity<?> getRandomQuestionsByPart(@RequestParam("part") String part,
                                                       @RequestParam("limit") int limit) {
         try {
-            if (limit <= 0 || limit % 3 != 0) {
-                return ResponseEntity.status(HttpStatus.OK)
-                        .body(new ResponseWrapper<>(null, 2)); // Kiểm tra limit phải là bội số của 3
-            }
-
             List<Question> allQuestions = questionRepo.findAllByPart(part);
+
             if (allQuestions.isEmpty()) {
                 return ResponseEntity.status(HttpStatus.OK)
                         .body(new ResponseWrapper<>(null, 2)); // Không tìm thấy câu hỏi
             }
 
-            // Nhóm câu hỏi theo stt
-            Map<String, List<Question>> groupedQuestions = allQuestions.stream()
-                    .collect(Collectors.groupingBy(Question::getStt));
+            // Nếu part là 3, 4, 6, hoặc 7, thì kiểm tra limit và nhóm câu hỏi
+            if (part.equals("3") || part.equals("4") || part.equals("6") || part.equals("7")) {
+                if (limit <= 0 || limit % 3 != 0) {
+                    return ResponseEntity.status(HttpStatus.OK)
+                            .body(new ResponseWrapper<>(null, 2)); // Kiểm tra limit phải là bội số của 3
+                }
 
-            List<List<Question>> resultGroups = new ArrayList<>();
+                // Nhóm câu hỏi theo stt
+                Map<String, List<Question>> groupedQuestions = allQuestions.stream()
+                        .collect(Collectors.groupingBy(Question::getStt));
 
-            // Lặp qua các nhóm và thêm vào kết quả
-            for (List<Question> group : groupedQuestions.values()) {
-                Collections.shuffle(group); // Trộn ngẫu nhiên nhóm câu hỏi
-                for (int i = 0; i < group.size(); i += 3) {
-                    if (i + 3 <= group.size()) {
-                        resultGroups.add(group.subList(i, i + 3)); // Thêm nhóm 3 câu hỏi
+                List<List<Question>> resultGroups = new ArrayList<>();
+
+                // Lặp qua các nhóm và thêm vào kết quả
+                for (List<Question> group : groupedQuestions.values()) {
+                    Collections.shuffle(group); // Trộn ngẫu nhiên nhóm câu hỏi
+                    for (int i = 0; i < group.size(); i += 3) {
+                        if (i + 3 <= group.size()) {
+                            resultGroups.add(group.subList(i, i + 3)); // Thêm nhóm 3 câu hỏi
+                        }
                     }
                 }
-            }
 
-            // Kiểm tra số lượng câu hỏi đủ với limit
-            if (resultGroups.size() < limit / 3) {
+                // Kiểm tra số lượng câu hỏi đủ với limit
+                if (resultGroups.size() < limit / 3) {
+                    return ResponseEntity.status(HttpStatus.OK)
+                            .body(new ResponseWrapper<>(null, 2)); // Không đủ nhóm câu hỏi
+                }
+
+                // Chỉ trả về số lượng nhóm yêu cầu
+                List<List<Question>> limitedGroups = resultGroups.subList(0, limit / 3);
                 return ResponseEntity.status(HttpStatus.OK)
-                        .body(new ResponseWrapper<>(null, 2)); // Không đủ nhóm câu hỏi
-            }
+                        .body(new ResponseWrapper<>(limitedGroups, 1));
 
-            // Chỉ trả về số lượng nhóm yêu cầu
-            List<List<Question>> limitedGroups = resultGroups.subList(0, limit / 3);
-            return ResponseEntity.status(HttpStatus.OK)
-                    .body(new ResponseWrapper<>(limitedGroups, 1));
+            } else {
+                // Với các part khác, trả về câu hỏi ngẫu nhiên với số lượng giới hạn
+                Collections.shuffle(allQuestions); // Trộn ngẫu nhiên danh sách câu hỏi
+                List<Question> limitedQuestions = allQuestions.stream()
+                        .limit(limit) // Giới hạn số lượng câu hỏi theo limit
+                        .collect(Collectors.toList());
+
+                return ResponseEntity.status(HttpStatus.OK)
+                        .body(new ResponseWrapper<>(limitedQuestions, 1));
+            }
 
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.OK)
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(new ResponseWrapper<>(null, 3)); // Lỗi không xác định
         }
     }
+
+
 
 
 
