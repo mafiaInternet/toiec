@@ -19,8 +19,8 @@ public class Question {
     @Id
     @JsonSerialize(using = ToStringSerializer.class)
     private ObjectId id;
-    private Number test;
-    private Number part;
+    private String test;
+    private String part;
     private String questionText;
     private String questionImg;
     private String questionAudio;
